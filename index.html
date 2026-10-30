@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>SBER · Неделя</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --bg:#ffffff; --bg2:#f6f7f8; --fg:#111315; --hint:#7b8189;
+    --line:#e6e8eb; --accent:#111315; --up:#1a7f4b; --down:#b3261e;
+    --bar:#dfe3e8; --bar2:#b9c0c8;
+  }
+  @media (prefers-color-scheme: dark){
+    html:not([data-theme="light"]){
+      --bg:#111315; --bg2:#181b1e; --fg:#f2f4f6; --hint:#8b929a;
+      --line:#252a2f; --accent:#f2f4f6; --up:#4ec27f; --down:#ff6b60;
+      --bar:#272c31; --bar2:#3a424a;
+    }
+  }
+  html[data-theme="dark"]{
+    --bg:#111315; --bg2:#181b1e; --fg:#f2f4f6; --hint:#8b929a;
+    --line:#252a2f; --accent:#f2f4f6; --up:#4ec27f; --down:#ff6b60;
+    --bar:#272c31; --bar2:#3a424a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif;
+    font-variant-numeric:tabular-nums; padding:0 0 26px;
+  }
+  html,body{overflow-x:hidden; max-width:100%}
+  .wrap{padding:14px 16px 0; width:100%; max-width:520px; margin:0 auto}
+  .row{display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+       flex-wrap:wrap; min-width:0}
+  .row > *{min-width:0}
+  .row .muted{flex:0 1 auto}
+  .h1{font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--hint)}
+  .muted{color:var(--hint); font-size:12.5px}
+  .big{font-size:30px; font-weight:600; letter-spacing:-.02em}
+  .chg{font-size:14px; font-weight:500}
+  .up{color:var(--up)} .down{color:var(--down)}
+  .card{background:var(--bg2); border-radius:14px; padding:14px; margin-top:12px}
+  .card.plain{background:transparent; padding:0; margin-top:20px}
+  .sep{height:1px; background:var(--line); margin:16px 0}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .k{font-size:11.5px; color:var(--hint); letter-spacing:.04em; text-transform:uppercase}
+  .v{font-size:16px; font-weight:550; margin-top:2px}
+  .verdict{font-size:13.5px; line-height:1.4; margin-top:10px; color:var(--fg)}
+  .tag{display:inline-block; font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+       border:1px solid var(--line); border-radius:999px; padding:3px 9px; color:var(--hint)}
+  svg{display:block; width:100%; height:auto}
+  .bars{display:flex; align-items:flex-end; gap:5px; height:76px; margin-top:10px; min-width:0}
+  .b{flex:1 1 0; min-width:0; display:flex; flex-direction:column; justify-content:flex-end; gap:5px; text-align:center}
+  .b i{display:block; background:var(--bar); border-radius:3px 3px 0 0; min-height:3px}
+  .b i.hot{background:var(--bar2)}
+  .b span{font-size:10px; color:var(--hint)}
+  table{width:100%; border-collapse:collapse; font-size:13.5px}
+  td{padding:7px 0; border-bottom:1px solid var(--line)}
+  td:last-child{text-align:right}
+  tr:last-child td{border-bottom:none}
+  .prof{margin-top:10px}
+  .pline{display:flex; align-items:center; gap:8px; height:15px; margin-bottom:2px}
+  .prof{overflow:hidden}
+  .pline .lb{width:44px; flex:0 0 44px; font-size:10.5px; color:var(--hint); text-align:right; flex:none}
+  .pline .tr{flex:1 1 auto; min-width:0; height:9px; background:transparent; overflow:hidden}
+  .pline .fl{height:9px; background:var(--bar); border-radius:2px}
+  .pline.poc .fl{background:var(--accent)}
+  .pline.poc .lb{color:var(--fg); font-weight:600}
+  .nav{position:fixed; bottom:0; left:0; right:0; background:color-mix(in srgb,var(--bg) 92%,transparent);
+       backdrop-filter:blur(12px); border-top:1px solid var(--line); display:flex; padding:8px 0 10px}
+  .nav div{flex:1; text-align:center; font-size:10.5px; letter-spacing:.03em; color:var(--hint); padding:3px 0}
+  .nav div.on{color:var(--fg); font-weight:600}
+  .nav b{display:block; font-size:15px; font-weight:500; margin-bottom:2px; opacity:.75}
+  .nav div.on b{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="row">
+    <span class="h1">SBER · неделя</span>
+    <span class="muted" id="stamp">—</span>
+  </div>
+
+  <div class="row" style="margin-top:8px">
+    <div>
+      <div class="big" id="px">—</div>
+      <div class="muted" id="sub">загрузка…</div>
+    </div>
+    <div style="text-align:right">
+      <div class="chg" id="chg">—</div>
+      <div class="muted" id="fut">—</div>
+    </div>
+  </div>
+
+  <svg id="spark" viewBox="0 0 480 118" preserveAspectRatio="none" style="margin-top:10px"></svg>
+
+  <div class="card">
+    <div class="row"><span class="k">Объём недели</span><span class="tag" id="volTag">—</span></div>
+    <div class="row" style="margin-top:6px; align-items:flex-end">
+      <span class="big" style="font-size:24px" id="volNow">—</span>
+      <span class="muted" id="volPrev">—</span>
+    </div>
+    <div class="verdict" id="verdict">—</div>
+  </div>
+
+  <div class="card plain">
+    <div class="k">Объём по дням</div>
+    <div class="bars" id="dayBars"></div>
+    <div class="muted" style="margin-top:6px" id="dayNote"></div>
+  </div>
+
+  <div class="card plain">
+    <div class="k">Профиль недели</div>
+    <div class="prof" id="prof"></div>
+    <div class="muted" style="margin-top:8px" id="profNote"></div>
+  </div>
+
+  <div class="card plain">
+    <div class="k">Уровни</div>
+    <table id="levels"></table>
+  </div>
+
+  <div class="card plain">
+    <div class="k">Опционы</div>
+    <table id="opts"></table>
+  </div>
+
+  <div class="muted" style="margin:18px 0 6px; text-align:center">Не инвестиционная рекомендация</div>
+</div>
+
+
+</div>
+
+<script>
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) {
+  tg.ready(); tg.expand();
+  if (tg.colorScheme === "dark") document.documentElement.dataset.theme = "dark";
+  try { tg.setHeaderColor("secondary_bg_color"); tg.setBackgroundColor("bg_color"); } catch(e){}
+}
+const $ = id => document.getElementById(id);
+const key = (s) => s;
+
+let CUR, WK;
+
+async function iss(path, params) {
+  const u = new URL("https://iss.moex.com" + path);
+  Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
+  u.searchParams.set("iss.meta", "off");
+  const r = await fetch(u.toString());
+  if (!r.ok) throw new Error("ISS " + r.status);
+  return r.json();
+}
+
+async function candles(secid, board, market, interval, days, engine = "stock") {
+  const from = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
+  const path = `/iss/engines/${engine}/markets/${market}/boards/${board}/securities/${secid}/candles.json`;
+  let out = [], start = 0;
+  for (let i = 0; i < 8; i++) {
+    const j = await iss(path, { interval, from, start });
+    const c = j.candles || {};
+    const cols = c.columns || [], data = c.data || [];
+    if (!data.length) break;
+    data.forEach(x => { const o = {}; cols.forEach((k, n) => o[k] = x[n]); out.push(o); });
+    start += data.length;
+    if (data.length < 500) break;
+  }
+  return out.sort((a, b) => a.begin < b.begin ? -1 : 1);
+}
+
+function isoWeek(dateStr) {
+  const d = new Date(dateStr.slice(0, 10) + "T00:00:00Z");
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  return [t.getUTCFullYear(), Math.ceil(((t - y0) / 864e5 + 1) / 7)];
+}
+
+function profile(bars, bin = 0.25) {
+  const map = new Map();
+  bars.forEach(b => {
+    const v = +b.volume || 0; if (v <= 0) return;
+    const tp = (+b.high + +b.low + +b.close) / 3;
+    const k = Math.round(tp / bin) * bin;
+    map.set(k, (map.get(k) || 0) + v);
+  });
+  if (!map.size) return null;
+  const keys = [...map.keys()].sort((a, b) => a - b);
+  const total = [...map.values()].reduce((a, b) => a + b, 0);
+  let poc = keys[0];
+  keys.forEach(k => { if (map.get(k) > map.get(poc)) poc = k; });
+  let lo = keys.indexOf(poc), hi = lo, acc = map.get(poc);
+  while (acc < total * 0.7 && (lo > 0 || hi < keys.length - 1)) {
+    const l = lo > 0 ? map.get(keys[lo - 1]) : -1;
+    const r = hi < keys.length - 1 ? map.get(keys[hi + 1]) : -1;
+    if (r >= l) { hi++; acc += map.get(keys[hi]); } else { lo--; acc += map.get(keys[lo]); }
+  }
+  return { map, keys, poc, val: keys[lo], vah: keys[hi], total };
+}
+
+const mln = x => (x / 1e6).toFixed(1);
+const f2 = x => x.toFixed(2);
+
+function drawSpark(bars, prof) {
+  const svg = $("spark");
+  if (!bars.length) return;
+  const W = 480, H = 118, pad = 6;
+  const ys = bars.map(b => +b.close);
+  const hi = Math.max(...ys), lo = Math.min(...ys);
+  const span = (hi - lo) || 1;
+  const X = i => pad + i * (W - pad * 2) / (bars.length - 1);
+  const Y = v => pad + (hi - v) / span * (H - pad * 2);
+  const d = ys.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
+  let g = "";
+  if (prof) {
+    const yTop = Y(prof.vah), yBot = Y(prof.val);
+    g += `<rect x="0" y="${Math.min(yTop,yBot).toFixed(1)}" width="${W}" height="${Math.abs(yBot-yTop).toFixed(1)}" fill="currentColor" opacity="0.05"/>`;
+    g += `<line x1="0" x2="${W}" y1="${Y(prof.poc).toFixed(1)}" y2="${Y(prof.poc).toFixed(1)}" stroke="currentColor" stroke-opacity=".28" stroke-dasharray="3 3" stroke-width="1"/>`;
+  }
+  svg.innerHTML = g +
+    `<path d="${d}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>` +
+    `<circle cx="${X(ys.length-1).toFixed(1)}" cy="${Y(ys[ys.length-1]).toFixed(1)}" r="2.6" fill="currentColor"/>`;
+}
+
+async function main() {
+  try {
+    const [daily, m15, fut, wf] = await Promise.all([
+      candles("SBER", "TQBR", "shares", 24, 70),
+      candles("SBER", "TQBR", "shares", 10, 20),
+      candles("SBER", "TQBR", "shares", 10, 5).catch(() => []),
+      candles("SRZ6", "RFUD", "forts", 24, 10, "futures").catch(() => []),
+    ]);
+
+    if (!daily.length) throw new Error("нет дневных данных");
+
+    const weeks = new Map();
+    daily.filter(b => +b.volume > 0).forEach(b => {
+      const k = isoWeek(b.begin).join("-");
+      if (!weeks.has(k)) weeks.set(k, []);
+      weeks.get(k).push(b);
+    });
+    const keys = [...weeks.keys()].sort();
+    const cur = weeks.get(keys[keys.length - 1]).sort((a, b) => a.begin < b.begin ? -1 : 1);
+    const prev = weeks.get(keys[keys.length - 2]).sort((a, b) => a.begin < b.begin ? -1 : 1);
+
+    const curVol = cur.reduce((s, b) => s + +b.volume, 0);
+    const prevVol = prev.reduce((s, b) => s + +b.volume, 0);
+    const n = cur.length;
+    const prevSame = prev.slice(0, n).reduce((s, b) => s + +b.volume, 0);
+    const forecast = curVol / n * 5;
+
+    const o = +cur[0].open, c = +cur[cur.length - 1].close;
+    const hi = Math.max(...cur.map(b => +b.high));
+    const lo = Math.min(...cur.map(b => +b.low));
+    const chgW = (c / o - 1) * 100;
+    const pos = hi > lo ? (c - lo) / (hi - lo) * 100 : 50;
+
+    const days = new Set(cur.map(b => b.begin.slice(0, 10)));
+    const wb = m15.filter(b => days.has(b.begin.slice(0, 10)));
+    const prof = profile(wb);
+
+    // объём в верхней трети
+    let above = 0, below = 0;
+    if (wb.length && hi > lo) {
+      const third = (hi - lo) / 3;
+      wb.forEach(b => {
+        const v = +b.volume || 0; if (v <= 0) return;
+        const tp = (+b.high + +b.low + +b.close) / 3;
+        if (tp >= hi - third) above += v;
+        else if (tp <= lo + third) below += v;
+      });
+    }
+    const share = above + below ? above / (above + below) * 100 : null;
+
+    const ratio = prevVol ? forecast / prevVol * 100 : 0;
+    const word = ratio >= 110 ? "растёт" : ratio >= 90 ? "стабилен" : "падает";
+    let verdict;
+    if (chgW > 0.3 && ratio >= 105) verdict = "Рост подтверждён объёмом.";
+    else if (chgW > 0.3 && ratio < 95) verdict = "Рост на слабом объёме — покупатели не поддерживают движение.";
+    else if (chgW < -0.3 && ratio >= 105) verdict = "Падение с объёмом — продают.";
+    else if (chgW < -0.3) verdict = "Падение на низком объёме.";
+    else verdict = "Боковик, объём " + word + ".";
+
+    // --- отрисовка
+    $("px").textContent = f2(c);
+    $("chg").textContent = (chgW >= 0 ? "+" : "") + chgW.toFixed(2) + "%";
+    $("chg").className = "chg " + (chgW >= 0 ? "up" : "down");
+    const d1 = cur[0].begin, d2 = cur[cur.length - 1].begin;
+    $("sub").textContent = "неделя " + d1.slice(8, 10) + "." + d1.slice(5, 7) +
+      " – " + d2.slice(8, 10) + "." + d2.slice(5, 7) + " · " + n + " сессий";
+    if (wf.length) {
+      const f = +wf[wf.length - 1].close;
+      $("fut").textContent = "SRZ6 " + f.toFixed(0);
+    }
+    $("stamp").textContent = new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) + " МСК";
+
+    $("volNow").textContent = mln(curVol) + " млн";
+    $("volPrev").textContent = "прошлая " + mln(prevVol) + " млн · " + Math.round(ratio) + "%";
+    $("volTag").textContent = word;
+    $("verdict").textContent = verdict;
+
+    // бары по дням
+    const maxV = Math.max(...cur.map(b => +b.volume));
+    $("dayBars").innerHTML = cur.map((b, i) => {
+      const v = +b.volume;
+      const h = Math.max(4, v / maxV * 62);
+      const hot = i === cur.length - 1 ? "hot" : "";
+      const dd = new Date(b.begin.slice(0, 10) + "T00:00:00Z");
+      const nm = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"][dd.getUTCDay()];
+      return `<div class="b"><span>${mln(v)}</span><i class="${hot}" style="height:${h}px"></i><span>${nm}</span></div>`;
+    }).join("");
+    $("dayNote").textContent = n < 5 ? `неделя не закрыта — ${n} из 5 сессий` :
+      `пятница ${mln(cur[cur.length - 1].volume)} млн · пик ${mln(maxV)} млн`;
+
+    drawSpark(wb.length ? wb : cur, prof);
+
+    // профиль
+    if (prof) {
+      const shown = prof.keys.filter(k => k >= lo - 1 && k <= hi + 1);
+      const step = Math.max(1, Math.floor(shown.length / 16));
+      const sel = shown.filter((_, i) => i % step === 0);
+      const mx = Math.max(...sel.map(k => prof.map.get(k)));
+      $("prof").innerHTML = sel.slice().reverse().map(k => {
+        const w = prof.map.get(k) / mx * 100;
+        const isPoc = Math.abs(k - prof.poc) < 0.01;
+        return `<div class="pline ${isPoc ? "poc" : ""}"><div class="lb">${k.toFixed(1)}</div>
+          <div class="tr"><div class="fl" style="width:${w.toFixed(0)}%"></div></div></div>`;
+      }).join("");
+      $("profNote").textContent = `POC ${f2(prof.poc)} · зона 70% ${f2(prof.val)} – ${f2(prof.vah)}`;
+    }
+
+    // уровни
+    const lv = [
+      ["Максимум недели", hi], ["Закрытие", c], ["POC", prof ? prof.poc : c],
+      ["Минимум недели", lo],
+    ];
+    $("levels").innerHTML = lv.map(([k, v]) =>
+      `<tr><td>${k}</td><td>${f2(v)}</td></tr>`).join("") +
+      `<tr><td>Позиция в диапазоне</td><td>${pos.toFixed(0)}%</td></tr>` +
+      (share !== null ? `<tr><td>Объём в верхней трети</td><td>${share.toFixed(0)}%</td></tr>` : "");
+
+    // опционы
+    try {
+      const j = await iss("/iss/engines/futures/markets/options/boards/ROPD/securities.json",
+        { iss: "off" });
+      const md = j.marketdata, sc = j.securities;
+      const M = {};
+      md.data.forEach(r => { M[r[0]] = r[md.columns.indexOf("OPENPOSITION")]; });
+      const today = new Date().toISOString().slice(0, 10);
+      const rows = sc.data.map(r => {
+        const o = {}; sc.columns.forEach((c, i) => o[c] = r[i]); return o;
+      }).filter(s => s.ASSETCODE === "SBRF" && String(s.SHORTNAME || "").startsWith("SBERP") &&
+        s.LASTTRADEDATE && s.LASTTRADEDATE >= today);
+      const byExp = {};
+      rows.forEach(s => (byExp[s.LASTTRADEDATE] = byExp[s.LASTTRADEDATE] || []).push(s));
+      const exps = Object.keys(byExp).sort().slice(0, 2);
+      let html = "";
+      exps.forEach(e => {
+        const ser = byExp[e];
+        const co = ser.filter(s => s.OPTIONTYPE === "C").reduce((a, s) => a + (M[s.SECID] || 0), 0);
+        const po = ser.filter(s => s.OPTIONTYPE === "P").reduce((a, s) => a + (M[s.SECID] || 0), 0);
+        html += `<tr><td>${e.slice(8, 10)}.${e.slice(5, 7)}</td><td>PCR ${(po / co || 0).toFixed(2)} · call ${mln(co)}М / put ${mln(po)}М</td></tr>`;
+      });
+      $("opts").innerHTML = html || `<tr><td>нет данных</td><td>—</td></tr>`;
+    } catch (e) {
+      $("opts").innerHTML = `<tr><td>опционы</td><td>недоступны</td></tr>`;
+    }
+  } catch (err) {
+    $("sub").textContent = "ошибка: " + err.message;
+  }
+}
+main();
+setInterval(main, 180000);
+</script>
+</body>
+</html>
