@@ -252,8 +252,45 @@
   <div class="muted" style="margin:18px 0 6px; text-align:center">Не инвестиционная рекомендация</div>
 </div>
 
+<!-- ============================ СИГНАЛЫ ============================ -->
+<div class="wrap" id="scr-signals" hidden>
+  <div class="row">
+    <span class="h1">SBER · СИГНАЛЫ</span>
+    <span class="muted" id="sigStamp">—</span>
+  </div>
+
+  <div class="card" id="sigHead">
+    <div class="row">
+      <div><div class="k">Цена</div>
+        <div id="sigPrice" style="font-size:22px;font-weight:600">—</div></div>
+      <div style="text-align:right"><div class="k">ATR</div>
+        <div id="sigAtr" style="font-size:16px">—</div></div>
+    </div>
+    <div class="verdict" id="sigState">—</div>
+  </div>
+
+  <div class="card plain">
+    <div class="k">Ближайшие уровни</div>
+    <div id="sigList" style="margin-top:10px"></div>
+    <div class="muted" id="sigNote" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card plain">
+    <div class="k">Все уровни</div>
+    <table id="sigAll"></table>
+  </div>
+
+  <div class="note" style="margin-top:14px">
+    Давление по тикам и абсорбция считаются только в терминале — там есть
+    локальные данные сборщика. Здесь объём, уровни и расчёт стопа с целью.
+  </div>
+
+  <div class="muted" style="margin:18px 0 6px; text-align:center">Не инвестиционная рекомендация</div>
+</div>
+
 <nav class="nav">
   <button data-scr="overview" class="on"><b>◧</b>Обзор</button>
+  <button data-scr="signals"><b>⌁</b>Сигналы</button>
   <button data-scr="options"><b>≡</b>Опционы</button>
   <button data-scr="settings"><b>⚙</b>Настройки</button>
 </nav>
@@ -702,15 +739,156 @@ $("saveBtn").addEventListener("click", () => {
   else window.open(url, "_blank");
 });
 
+
+// ---------------------------------------------------------------- сигналы
+function mskNow(){
+  return new Date(Date.now() + 3 * 3600e3);   // МСК от UTC
+}
+function marketOpen(){
+  const d = mskNow();
+  const wd = d.getUTCDay();                    // 0 Вс, 6 Сб
+  if (wd === 0 || wd === 6) return false;
+  const m = d.getUTCHours() * 60 + d.getUTCMinutes();
+  return m >= 7 * 60 && m < 23 * 60 + 50;
+}
+function atrFrom(daily, n = 14){
+  if (daily.length < n + 1) return null;
+  let sum = 0;
+  for (let i = daily.length - n; i < daily.length; i++) {
+    const h = +daily[i].high, l = +daily[i].low, pc = +daily[i - 1].close;
+    sum += Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc));
+  }
+  return sum / n;
+}
+
+async function loadSignals(){
+  $("sigStamp").textContent = "загрузка…";
+  try {
+    const [bars, daily, opts] = await Promise.all([
+      candles("SBER", "TQBR", "shares", 10, 5),
+      candles("SBER", "TQBR", "shares", 24, 60),
+      iss("/iss/engines/futures/markets/options/boards/ROPD/securities.json", {}).catch(() => null),
+    ]);
+    if (!bars.length) throw new Error("нет данных");
+    const price = +bars[bars.length - 1].close;
+    const atr = atrFrom(daily);
+
+    // профиль за две последние сессии
+    const days = [...new Set(bars.map(b => b.begin.slice(0, 10)))].slice(-2);
+    const p2 = bars.filter(b => days.includes(b.begin.slice(0, 10)));
+    const prof = profile(p2, 0.25);
+
+    // уровни
+    const lv = [];
+    const add = (v, name, w) => {
+      if (!v) return;
+      lv.push({value: v, name, dist: (price - v) / price * 100, w});
+    };
+    if (prof) { add(prof.poc, "POC", 3); add(prof.vah, "VAH", 2); add(prof.val, "VAL", 2); }
+    if (daily.length >= 200) {
+      const ma = daily.slice(-200).reduce((s, b) => s + +b.close, 0) / 200;
+      add(ma, "MA200", 3);
+    }
+    const today = bars.filter(b => b.begin.slice(0, 10) === bars[bars.length - 1].begin.slice(0, 10));
+    if (today.length) {
+      add(Math.max(...today.map(b => +b.high)), "макс дня", 1);
+      add(Math.min(...today.map(b => +b.low)), "мин дня", 1);
+    }
+    // опционные стены
+    try {
+      const j = opts;
+      if (j) {
+        const md = j.marketdata, sc = j.securities;
+        const oiIdx = md.columns.indexOf("OPENPOSITION");
+        const M = {}; md.data.forEach(r => M[r[0]] = r[oiIdx] || 0);
+        const t = new Date().toISOString().slice(0, 10);
+        const rows = sc.data.map(r => { const o = {}; sc.columns.forEach((c, i) => o[c] = r[i]); return o; })
+          .filter(x => x.ASSETCODE === "SBRF" && String(x.SHORTNAME || "").startsWith("SBERP") && x.LASTTRADEDATE >= t);
+        const by = {};
+        rows.forEach(x => {
+          const k = +x.STRIKE > 1000 ? +x.STRIKE / 100 : +x.STRIKE;
+          (by[x.OPTIONTYPE] = by[x.OPTIONTYPE] || []).push({k, oi: M[x.SECID] || 0});
+        });
+        ["C", "P"].forEach(side => {
+          (by[side] || [])
+            .filter(w => w.oi >= 1000 && w.k >= price * 0.85 && w.k <= price * 1.15)
+            .sort((a, b) => b.oi - a.oi).slice(0, 2).forEach(w => {
+              add(w.k, "стена " + (side === "C" ? "call" : "put"), 3);
+            });
+        });
+      }
+    } catch(e){}
+
+    // объём
+    const vols = today.map(b => +b.volume);
+    const avgV = vols.length ? vols.reduce((a, b) => a + b, 0) / vols.length : 0;
+    const last3 = vols.slice(-3);
+    const lastAvg = last3.length ? last3.reduce((a, b) => a + b, 0) / last3.length : 0;
+    const vRatio = avgV ? lastAvg / avgV : 0;
+    const vTrend = vRatio >= 1.3 ? "растёт" : vRatio <= 0.7 ? "падает" : "обычный";
+
+    // близкие уровни
+    const thr = Math.max(0.35, atr ? atr / price * 100 * 0.5 : 0);
+    const near = lv.filter(x => Math.abs(x.dist) <= thr).sort((a, b) => Math.abs(a.dist) - Math.abs(b.dist));
+    const risk = atr ? atr * 0.5 : null;
+
+    $("sigPrice").textContent = price.toFixed(2);
+    $("sigAtr").textContent = atr ? atr.toFixed(2) + " ₽" : "—";
+    const open = marketOpen();
+    $("sigState").textContent = open
+      ? `Торги идут. Объём ${vTrend} (${vRatio.toFixed(1)}× среднего). Порог близости ${thr.toFixed(2)}%.`
+      : `Биржа закрыта. Сигналы считаются только в торги: будни 07:00–23:50 МСК.`;
+    $("sigState").className = "verdict" + (open ? "" : " muted");
+
+    $("sigList").innerHTML = near.length ? near.map(x => {
+      const up = x.dist < 0;
+      const side = up ? "↑ сопротивление" : "↓ поддержка";
+      let plan = "";
+      if (risk) {
+        const stop = up ? price + risk : price - risk;
+        const cand = lv.filter(y => up ? y.value < price - risk * 0.8 : y.value > price + risk * 0.8);
+        let target = up
+          ? (cand.length ? Math.max(...cand.map(y => y.value)) : price - risk * 2)
+          : (cand.length ? Math.min(...cand.map(y => y.value)) : price + risk * 2);
+        let reward = Math.abs(target - price);
+        if (reward < risk * 0.8 || reward > risk * 3) {
+          target = up ? price - risk * 2 : price + risk * 2;
+          reward = risk * 2;
+        }
+        plan = `<div class="muted" style="margin-top:3px">стоп ${stop.toFixed(2)} · цель ${target.toFixed(2)} · R:R ${(reward / risk).toFixed(1)}</div>`;
+      }
+      return `<div style="padding:9px 0;border-bottom:1px solid var(--line)">
+        <div style="display:flex;justify-content:space-between;gap:8px">
+          <span>${side} ${x.value.toFixed(2)}</span>
+          <span class="muted">${x.dist > 0 ? "+" : ""}${x.dist.toFixed(2)}%</span>
+        </div>
+        <div class="muted" style="margin-top:2px">${x.name}</div>
+        ${plan}
+      </div>`;
+    }).join("") : `<div class="muted">Цена к уровням не подходит</div>`;
+
+    $("sigNote").textContent = `ближайшие две сессии · ${near.length} уровней в радиусе ${thr.toFixed(2)}%`;
+
+    $("sigAll").innerHTML = lv.sort((a, b) => Math.abs(a.dist) - Math.abs(b.dist)).slice(0, 8)
+      .map(x => `<tr><td>${x.value.toFixed(2)}</td><td class="muted">${x.name}</td>
+        <td class="${x.dist > 0 ? "down" : "up"}">${x.dist > 0 ? "+" : ""}${x.dist.toFixed(2)}%</td></tr>`).join("");
+
+    $("sigStamp").textContent = new Date().toLocaleTimeString("ru-RU", {hour: "2-digit", minute: "2-digit"}) + " МСК";
+  } catch(e) {
+    $("sigStamp").textContent = "ошибка: " + e.message;
+  }
+}
+
 // ---------------------------------------------------------------- навигация
 function showScreen(name){
-  ["overview","options","settings"].forEach(s => {
+  ["overview","signals","options","settings"].forEach(s => {
     $("scr-" + s).hidden = (s !== name);
   });
   document.querySelectorAll(".nav button").forEach(b =>
     b.classList.toggle("on", b.dataset.scr === name));
   window.scrollTo(0,0);
   if (name === "options" && !optData) loadOptions();
+  if (name === "signals") loadSignals();
 }
 document.querySelectorAll(".nav button").forEach(b =>
   b.addEventListener("click", () => showScreen(b.dataset.scr)));
@@ -747,7 +925,7 @@ document.querySelectorAll("#tabs button").forEach(b =>
 
 (async () => {
   const sc = new URLSearchParams(location.search).get("scr");
-  if (sc && ["overview","options","settings"].includes(sc)) showScreen(sc);
+  if (sc && ["overview","signals","options","settings"].includes(sc)) showScreen(sc);
 
   try {
     const wf = await candles("SRZ6","RFUD","forts",24,10,"futures");
